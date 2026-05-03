@@ -243,7 +243,7 @@ const PIECES = [null,
   [[0,0,7],[7,7,7],[0,0,0]],
 ];
 const SCORE_TABLE  = [0, 100, 300, 500, 800];
-const LEVEL_LINES  = 10;
+const LEVEL_LINES  = 5;
 const DAS_MS       = 133;
 const ARR_MS       = 10;
 const LOCK_DELAY   = 500;
@@ -355,7 +355,7 @@ function finishFlash() {
   score += pendingScore;
   lines += pendingLines;
   level        = Math.floor(lines / LEVEL_LINES) + 1;
-  dropInterval = Math.max(50, 1000 - (level-1)*80);
+  dropInterval = Math.max(50, 700 - (level-1)*70);
   flashLines   = [];
   updateUI();
   doSpawn();
@@ -411,7 +411,6 @@ function ghostY() {
 function softDrop() {
   if (collides(piece, board, 0, 1)) return;
   piece.y++;
-  score++;
   isGrounded   = false;
   lockTimer    = 0;
   lockResets   = 0;
@@ -444,6 +443,7 @@ function doSpawn() {
   if (collides(piece, board)) {
     gameOver = true;
     running  = false;
+    stopBGM();
     showGameOver();
   }
 }
@@ -631,7 +631,7 @@ function startGame() {
   holdPiece    = null;
   canHold      = true;
   score        = 0; lines = 0; level = 1;
-  dropInterval = 1000;
+  dropInterval = 700;
   dropCounter  = 0;
   lastTime     = null;
   gameOver     = false; paused = false; running = true;
@@ -646,6 +646,7 @@ function startGame() {
   document.getElementById('overlay').style.display = 'none';
   if (animId) cancelAnimationFrame(animId);
   animId = requestAnimationFrame(gameLoop);
+  startBGM();
 }
 
 // ===== OVERLAYS =====
@@ -697,6 +698,7 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'p' || e.key === 'P') && !e.repeat) {
     paused = !paused;
     if (!paused) lastTime = null;
+    togglePauseBGM(paused);
     return;
   }
   if (paused || (flashLines && flashLines.length)) return;
@@ -782,6 +784,71 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]
   );
+}
+
+// ===== BGM =====
+let audioCtx = null;
+let bgmPlaying = false;
+let bgmScheduleId = null;
+
+const NOTE = { A4:440, B4:494, C5:523, D5:587, E5:659, F5:698, G5:784, A5:880 };
+const KOROBEINIKI = [
+  ['E5',.5],['B4',.25],['C5',.25],['D5',.5],['C5',.25],['B4',.25],
+  ['A4',.5],['A4',.25],['C5',.25],['E5',.5],['D5',.25],['C5',.25],
+  ['B4',.75],['C5',.25],['D5',.5],['E5',.5],
+  ['C5',.5],['A4',.5],['A4',1],
+  ['D5',.75],['F5',.25],['A5',.5],['G5',.25],['F5',.25],
+  ['E5',.75],['C5',.25],['E5',.5],['D5',.25],['C5',.25],
+  ['B4',.5],['B4',.25],['C5',.25],['D5',.5],['E5',.5],
+  ['C5',.5],['A4',.5],['A4',1],
+];
+const BEAT = 0.38;
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playMelody(t0) {
+  let t = t0;
+  KOROBEINIKI.forEach(([n, b]) => {
+    const dur = b * BEAT;
+    const osc = audioCtx.createOscillator();
+    const g   = audioCtx.createGain();
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    osc.frequency.value = NOTE[n];
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.linearRampToValueAtTime(0.09, t + dur * 0.7);
+    g.gain.linearRampToValueAtTime(0, t + dur * 0.92);
+    osc.start(t); osc.stop(t + dur);
+    t += dur;
+  });
+}
+
+function scheduleBGM() {
+  if (!bgmPlaying) return;
+  const dur = KOROBEINIKI.reduce((s,[,b]) => s + b * BEAT, 0);
+  playMelody(audioCtx.currentTime);
+  bgmScheduleId = setTimeout(scheduleBGM, (dur - 0.1) * 1000);
+}
+
+function startBGM() {
+  ensureAudio();
+  if (bgmPlaying) return;
+  bgmPlaying = true;
+  scheduleBGM();
+}
+
+function stopBGM() {
+  bgmPlaying = false;
+  if (bgmScheduleId) { clearTimeout(bgmScheduleId); bgmScheduleId = null; }
+}
+
+function togglePauseBGM(isPaused) {
+  if (!audioCtx) return;
+  if (isPaused) audioCtx.suspend();
+  else audioCtx.resume();
 }
 
 // ===== INIT =====
