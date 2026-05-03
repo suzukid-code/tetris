@@ -101,31 +101,6 @@
     .btn:active { transform: translateY(0); }
     .btn:disabled { opacity: 0.6; cursor: default; transform: none; }
 
-    .btn-ghost {
-      background: transparent;
-      border: 1px solid #2a2a4a;
-      box-shadow: none;
-      color: #777;
-      font-size: 13px;
-      padding: 8px 0;
-    }
-    .btn-ghost:hover { background: #1a1a3a; box-shadow: none; }
-
-    #name-input {
-      background: #1a1a35;
-      border: 1px solid #3a3a6a;
-      border-radius: 6px;
-      color: #fff;
-      font-size: 15px;
-      padding: 9px 14px;
-      text-align: center;
-      width: 100%;
-      max-width: 220px;
-      outline: none;
-    }
-    #name-input:focus { border-color: #6060ff; }
-    #name-input::placeholder { color: #444; }
-
     #level-bar-bg {
       width: 100%; height: 4px;
       background: #1a1a2a; border-radius: 2px;
@@ -136,38 +111,6 @@
       background: linear-gradient(90deg, #4040cc, #8080ff);
       border-radius: 2px;
       transition: width 0.3s;
-    }
-
-    .ranking-list { margin-top: 2px; }
-    .rank-row {
-      display: flex;
-      gap: 4px;
-      font-size: 11px;
-      line-height: 1.9;
-      color: #777;
-    }
-    .rank-row.gold   { color: #ffd700; }
-    .rank-row.silver { color: #c0c0c0; }
-    .rank-row.bronze { color: #cd7f32; }
-    .rank-num   { color: #444; width: 14px; flex-shrink: 0; text-align: right; }
-    .rank-name  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .rank-score { font-weight: bold; flex-shrink: 0; }
-
-    .overlay-rank {
-      width: 100%;
-      max-width: 220px;
-      background: #0d0d20;
-      border: 1px solid #2a2a4a;
-      border-radius: 6px;
-      padding: 10px 12px;
-    }
-    .overlay-rank h4 {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      color: #555;
-      margin-bottom: 8px;
-      text-align: center;
     }
 
     .score-highlight {
@@ -214,19 +157,10 @@
       <h3>NEXT</h3>
       <canvas id="next-canvas" width="100" height="270"></canvas>
     </div>
-    <div class="panel-box">
-      <h3>ランキング</h3>
-      <div class="ranking-list" id="ranking-list">
-        <div style="color:#333;font-size:11px;padding:4px 0">読み込み中...</div>
-      </div>
-    </div>
   </div>
 
 </div>
 <script>
-// ===== CONFIG =====
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxIwTfZtKem_PAaHH0e47d82rr7Jct1YAiDJZyDIT-oap_J4yiETxcEApAxX127_0E/exec'; // GASデプロイ後にここを書き換える
-
 // ===== CONSTANTS =====
 const COLS = 10, ROWS = 20, BLOCK = 30;
 const COLORS = [null,
@@ -673,21 +607,9 @@ function showGameOver() {
   setOverlay(`
     <h1 style="font-size:28px;letter-spacing:3px">GAME OVER</h1>
     <div class="score-highlight">${score.toLocaleString()}</div>
-    <p class="sub">名前を入力してスコアを登録</p>
-    <input id="name-input" type="text" maxlength="10" placeholder="名前（10文字以内）" autocomplete="off">
-    <button class="btn" id="ob-submit">スコアを登録</button>
-    <button class="btn btn-ghost" id="ob-retry">もう一度（登録しない）</button>
-    <div class="overlay-rank" id="ob-rank" style="display:none">
-      <h4>ランキング TOP10</h4>
-      <div id="ob-rank-list"></div>
-    </div>
+    <button class="btn" id="ob-retry">もう一度</button>
   `);
-  document.getElementById('ob-submit').onclick = submitScore;
-  document.getElementById('ob-retry').onclick  = startGame;
-  document.getElementById('name-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') submitScore();
-  });
-  loadRanking();
+  document.getElementById('ob-retry').onclick = startGame;
 }
 
 // ===== INPUT =====
@@ -719,71 +641,6 @@ document.addEventListener('keydown', e => {
 
 document.addEventListener('keyup', e => keysDown.delete(e.key));
 
-// ===== GAS / LEADERBOARD =====
-async function submitScore() {
-  const nameEl  = document.getElementById('name-input');
-  const name    = nameEl ? nameEl.value.trim() || '名無し' : '名無し';
-  const btn     = document.getElementById('ob-submit');
-
-  if (btn) { btn.disabled = true; btn.textContent = '登録中...'; }
-
-  if (GAS_URL !== 'YOUR_GAS_URL_HERE') {
-    try {
-      await fetch(GAS_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        body: new URLSearchParams({ name, score })
-      });
-      await new Promise(r => setTimeout(r, 1000));
-    } catch(_) {}
-  }
-
-  await loadRanking();
-
-  const box = document.getElementById('ob-rank');
-  if (box) box.style.display = 'block';
-  if (btn) { btn.textContent = 'もう一度'; btn.disabled = false; btn.onclick = startGame; }
-}
-
-async function loadRanking() {
-  if (GAS_URL === 'YOUR_GAS_URL_HERE') {
-    renderRanking(null, 'ranking-list', 5);
-    renderRanking(null, 'ob-rank-list', 10);
-    return;
-  }
-  try {
-    const res  = await fetch(GAS_URL + '?action=ranking', { cache: 'no-store' });
-    const data = await res.json();
-    renderRanking(data, 'ranking-list', 5);
-    renderRanking(data, 'ob-rank-list', 10);
-  } catch(_) {
-    const el = document.getElementById('ranking-list');
-    if (el) el.innerHTML = '<div style="color:#333;font-size:11px">取得できません</div>';
-  }
-}
-
-function renderRanking(data, id, limit) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (!data || !data.length) {
-    el.innerHTML = '<div style="color:#333;font-size:11px;padding:2px 0">まだ記録なし</div>';
-    return;
-  }
-  const medals = ['gold','silver','bronze'];
-  el.innerHTML = data.slice(0, limit).map((entry, i) => `
-    <div class="rank-row ${medals[i]||''}">
-      <span class="rank-num">${i+1}</span>
-      <span class="rank-name">${esc(entry.name)}</span>
-      <span class="rank-score">${Number(entry.score).toLocaleString()}</span>
-    </div>
-  `).join('');
-}
-
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c =>
-    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]
-  );
-}
 
 // ===== BGM =====
 let audioCtx = null;
@@ -853,7 +710,6 @@ function togglePauseBGM(isPaused) {
 
 // ===== INIT =====
 showStart();
-loadRanking();
 </script>
 </body>
 </html>
