@@ -732,8 +732,7 @@ async function submitScore() {
       await fetch(GAS_URL, {
         method: 'POST',
         mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, score })
+        body: new URLSearchParams({ name, score })
       });
       await new Promise(r => setTimeout(r, 1000));
     } catch(_) {}
@@ -843,6 +842,7 @@ function startBGM() {
 function stopBGM() {
   bgmPlaying = false;
   if (bgmScheduleId) { clearTimeout(bgmScheduleId); bgmScheduleId = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
 }
 
 function togglePauseBGM(isPaused) {
