@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>テトリス</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a1a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      color: #fff;
+    }
+
+    #game-wrapper {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    #left-panel, #right-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 120px;
+    }
+
+    .panel-box {
+      background: #111128;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .panel-box h3 {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .panel-box .value {
+      font-size: 26px;
+      font-weight: bold;
+      color: #e0e0ff;
+    }
+
+    #next-canvas, #hold-canvas { display: block; }
+
+    #game-container { position: relative; }
+
+    #game-canvas {
+      display: block;
+      border: 2px solid #2a2a4a;
+      border-radius: 4px;
+    }
+
+    #overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(5, 5, 20, 0.92);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border-radius: 4px;
+      gap: 14px;
+      padding: 20px;
+    }
+
+    #overlay h1 {
+      font-size: 36px;
+      font-weight: 900;
+      color: #e0e0ff;
+      text-shadow: 0 0 24px #6060ff;
+      letter-spacing: 4px;
+    }
+
+    .sub { color: #666; font-size: 13px; }
+
+    .btn {
+      background: linear-gradient(135deg, #3a3acc, #5a5aff);
+      color: #fff;
+      border: none;
+      padding: 11px 0;
+      border-radius: 6px;
+      font-size: 15px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(80,80,255,0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
+      width: 100%;
+      max-width: 220px;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(80,80,255,0.5); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid #2a2a4a;
+      box-shadow: none;
+      color: #777;
+      font-size: 13px;
+      padding: 8px 0;
+    }
+    .btn-ghost:hover { background: #1a1a3a; box-shadow: none; }
+
+    #name-input {
+      background: #1a1a35;
+      border: 1px solid #3a3a6a;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 15px;
+      padding: 9px 14px;
+      text-align: center;
+      width: 100%;
+      max-width: 220px;
+      outline: none;
+    }
+    #name-input:focus { border-color: #6060ff; }
+    #name-input::placeholder { color: #444; }
+
+    #level-bar-bg {
+      width: 100%; height: 4px;
+      background: #1a1a2a; border-radius: 2px;
+      margin-top: 6px; overflow: hidden;
+    }
+    #level-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #4040cc, #8080ff);
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    .ranking-list { margin-top: 2px; }
+    .rank-row {
+      display: flex;
+      gap: 4px;
+      font-size: 11px;
+      line-height: 1.9;
+      color: #777;
+    }
+    .rank-row.gold   { color: #ffd700; }
+    .rank-row.silver { color: #c0c0c0; }
+    .rank-row.bronze { color: #cd7f32; }
+    .rank-num   { color: #444; width: 14px; flex-shrink: 0; text-align: right; }
+    .rank-name  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rank-score { font-weight: bold; flex-shrink: 0; }
+
+    .overlay-rank {
+      width: 100%;
+      max-width: 220px;
+      background: #0d0d20;
+      border: 1px solid #2a2a4a;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .overlay-rank h4 {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #555;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .score-highlight {
+      font-size: 32px;
+      font-weight: bold;
+      color: #80a0ff;
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+<div id="game-wrapper">
+
+  <!-- 左パネル -->
+  <div id="left-panel">
+    <div class="panel-box">
+      <h3>スコア</h3>
+      <div class="value" id="score-display">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>ライン</h3>
+      <div class="value" id="lines-display">0</div>
+    </div>
+    <div class="panel-box">
+      <h3>レベル</h3>
+      <div class="value" id="level-display">1</div>
+      <div id="level-bar-bg"><div id="level-bar" style="width:0%"></div></div>
+    </div>
+    <div class="panel-box">
+      <h3>ホールド</h3>
+      <canvas id="hold-canvas" width="100" height="76"></canvas>
+    </div>
+  </div>
+
+  <!-- ゲームボード -->
+  <div id="game-container">
+    <canvas id="game-canvas" width="300" height="600"></canvas>
+    <div id="overlay"></div>
+  </div>
+
+  <!-- 右パネル -->
+  <div id="right-panel">
+    <div class="panel-box">
+      <h3>NEXT</h3>
+      <canvas id="next-canvas" width="100" height="270"></canvas>
+    </div>
+    <div class="panel-box">
+      <h3>ランキング</h3>
+      <div class="ranking-list" id="ranking-list">
+        <div style="color:#333;font-size:11px;padding:4px 0">読み込み中...</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+// ===== CONFIG =====
+const GAS_URL = 'YOUR_GAS_URL_HERE'; // GASデプロイ後にここを書き換える
+
+// ===== CONSTANTS =====
+const COLS = 10, ROWS = 20, BLOCK = 30;
+const COLORS = [null,
+  '#00cfcf','#f0a000','#a000f0',
+  '#30c030','#e03030','#2060e0','#f07000'
+];
+const PIECES = [null,
+  [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  [[2,2],[2,2]],
+  [[0,3,0],[3,3,3],[0,0,0]],
+  [[0,4,4],[4,4,0],[0,0,0]],
+  [[5,5,0],[0,5,5],[0,0,0]],
+  [[6,0,0],[6,6,6],[0,0,0]],
+  [[0,0,7],[7,7,7],[0,0,0]],
+];
+const SCORE_TABLE  = [0, 100, 300, 500, 800];
+const LEVEL_LINES  = 10;
+const DAS_MS       = 133;
+const ARR_MS       = 10;
+const LOCK_DELAY   = 500;
+const MAX_RESETS   = 15;
+const FLASH_MS     = 220;
+
+// ===== CANVAS =====
+const canvas     = document.getElementById('game-canvas');
+const ctx        = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nextCtx    = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx    = holdCanvas.getContext('2d');
+
+// ===== GAME STATE =====
+let board, piece, nextQueue, holdPiece, canHold;
+let score, lines, level, gameOver, paused, running;
+let dropInterval, dropCounter, lastTime, animId;
+let lastTetris;
+
+// DAS
+let keysDown   = new Set();
+let dasHeld    = {};
+let dasActive  = {};
+
+// Lock delay
+let lockTimer, lockResets, isGrounded;
+
+// Line flash
+let flashLines, flashTimer, pendingScore, pendingLines;
+
+// ===== 7-BAG RANDOMIZER =====
+let bag = [];
+function drawBag() {
+  if (!bag.length) {
+    bag = [1,2,3,4,5,6,7];
+    for (let i = 6; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i+1));
+      [bag[i], bag[j]] = [bag[j], bag[i]];
+    }
+  }
+  return bag.shift();
+}
+
+function makePiece(id) {
+  const shape = PIECES[id].map(r => [...r]);
+  return { id, shape, x: Math.floor(COLS/2) - Math.floor(shape[0].length/2), y: 0 };
+}
+
+function fillQueue() {
+  while (nextQueue.length < 5) nextQueue.push(makePiece(drawBag()));
+}
+
+function popNext() {
+  const p = nextQueue.shift();
+  fillQueue();
+  return p;
+}
+
+// ===== BOARD HELPERS =====
+function newBoard() {
+  return Array.from({length: ROWS}, () => Array(COLS).fill(0));
+}
+
+function collides(p, brd, ox=0, oy=0, shape=null) {
+  const s = shape || p.shape;
+  for (let r = 0; r < s.length; r++)
+    for (let c = 0; c < s[r].length; c++) {
+      if (!s[r][c]) continue;
+      const nx = p.x+c+ox, ny = p.y+r+oy;
+      if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+      if (ny >= 0 && brd[ny][nx]) return true;
+    }
+  return false;
+}
+
+function stamp(p) {
+  p.shape.forEach((row, r) =>
+    row.forEach((v, c) => {
+      if (v && p.y+r >= 0) board[p.y+r][p.x+c] = v;
+    })
+  );
+}
+
+// ===== LINE CLEAR =====
+function checkLines() {
+  const cleared = [];
+  for (let r = 0; r < ROWS; r++)
+    if (board[r].every(v => v)) cleared.push(r);
+  if (!cleared.length) return false;
+
+  const n = cleared.length;
+  let gain = SCORE_TABLE[n] * level;
+  if (n === 4 && lastTetris) gain = Math.floor(gain * 1.5); // back-to-back
+  lastTetris = (n === 4);
+
+  flashLines   = cleared;
+  flashTimer   = FLASH_MS;
+  pendingScore = gain;
+  pendingLines = n;
+  return true;
+}
+
+function finishFlash() {
+  [...flashLines].sort((a,b) => b-a).forEach(r => {
+    board.splice(r, 1);
+    board.unshift(Array(COLS).fill(0));
+  });
+  score += pendingScore;
+  lines += pendingLines;
+  level        = Math.floor(lines / LEVEL_LINES) + 1;
+  dropInterval = Math.max(50, 1000 - (level-1)*80);
+  flashLines   = [];
+  updateUI();
+  doSpawn();
+}
+
+// ===== PIECE ACTIONS =====
+function rotate(shape) {
+  const N = shape.length, M = shape[0].length;
+  const r = Array.from({length: M}, () => Array(N).fill(0));
+  for (let i = 0; i < N; i++)
+    for (let j = 0; j < M; j++)
+      r[j][N-1-i] = shape[i][j];
+  return r;
+}
+
+function tryRotate() {
+  const rotated = rotate(piece.shape);
+  for (const kick of [0, -1, 1, -2, 2]) {
+    if (!collides(piece, board, kick, 0, rotated)) {
+      piece.shape = rotated;
+      piece.x += kick;
+      onAction();
+      return;
+    }
+  }
+}
+
+function tryMove(dx) {
+  if (collides(piece, board, dx)) return false;
+  piece.x += dx;
+  onAction();
+  return true;
+}
+
+function onAction() {
+  if (collides(piece, board, 0, 1)) {
+    if (isGrounded && lockResets < MAX_RESETS) {
+      lockTimer = LOCK_DELAY;
+      lockResets++;
+    }
+  } else {
+    isGrounded = false;
+    lockTimer  = 0;
+  }
+}
+
+function ghostY() {
+  let gy = 0;
+  while (!collides(piece, board, 0, gy+1)) gy++;
+  return gy;
+}
+
+function softDrop() {
+  if (collides(piece, board, 0, 1)) return;
+  piece.y++;
+  score++;
+  isGrounded   = false;
+  lockTimer    = 0;
+  lockResets   = 0;
+  dropCounter  = 0;
+  updateUI();
+}
+
+function hardDrop() {
+  const gy = ghostY();
+  score      += gy * 2;
+  piece.y    += gy;
+  isGrounded  = false;
+  lockTimer   = 0;
+  lockResets  = 0;
+  doLock();
+}
+
+function doLock() {
+  stamp(piece);
+  isGrounded = false;
+  lockTimer  = 0;
+  lockResets = 0;
+  canHold    = true;
+  if (!checkLines()) doSpawn();
+  updateUI();
+}
+
+function doSpawn() {
+  piece = popNext();
+  if (collides(piece, board)) {
+    gameOver = true;
+    running  = false;
+    showGameOver();
+  }
+}
+
+function doHold() {
+  if (!canHold) return;
+  canHold    = false;
+  isGrounded = false;
+  lockTimer  = 0;
+  lockResets = 0;
+  if (holdPiece) {
+    const tmp = holdPiece;
+    holdPiece = makePiece(piece.id);
+    piece = tmp;
+    piece.x = Math.floor(COLS/2) - Math.floor(piece.shape[0].length/2);
+    piece.y = 0;
+  } else {
+    holdPiece = makePiece(piece.id);
+    doSpawn();
+  }
+}
+
+// ===== DRAW =====
+function drawBlock(xCtx, x, y, colorId, alpha=1, s=BLOCK) {
+  xCtx.globalAlpha = alpha;
+  xCtx.fillStyle   = COLORS[colorId];
+  xCtx.fillRect(x*s+1, y*s+1, s-2, s-2);
+  xCtx.fillStyle = 'rgba(255,255,255,0.2)';
+  xCtx.fillRect(x*s+1, y*s+1, s-2, 5);
+  xCtx.fillStyle = 'rgba(0,0,0,0.15)';
+  xCtx.fillRect(x*s+1, y*s+s-5, s-2, 4);
+  xCtx.globalAlpha = 1;
+}
+
+function drawBoard() {
+  ctx.fillStyle = '#0c0c1e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth   = 1;
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r*BLOCK); ctx.lineTo(COLS*BLOCK, r*BLOCK); ctx.stroke();
+  }
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c*BLOCK, 0); ctx.lineTo(c*BLOCK, ROWS*BLOCK); ctx.stroke();
+  }
+
+  board.forEach((row, r) => {
+    if (flashLines && flashLines.includes(r)) return;
+    row.forEach((v, c) => v && drawBlock(ctx, c, r, v));
+  });
+
+  if (flashLines && flashLines.length) {
+    const t     = flashTimer / FLASH_MS;
+    const alpha = 0.5 + 0.5 * Math.abs(Math.sin((1-t) * Math.PI * 3));
+    flashLines.forEach(r => {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle   = '#ffffff';
+      ctx.fillRect(0, r*BLOCK+1, COLS*BLOCK, BLOCK-2);
+      ctx.globalAlpha = 1;
+    });
+    return;
+  }
+
+  if (!piece) return;
+
+  const gy = ghostY();
+  piece.shape.forEach((row, r) =>
+    row.forEach((v, c) => v && drawBlock(ctx, piece.x+c, piece.y+r+gy, piece.id, 0.18))
+  );
+  piece.shape.forEach((row, r) =>
+    row.forEach((v, c) => v && drawBlock(ctx, piece.x+c, piece.y+r, piece.id))
+  );
+}
+
+const MINI = 20;
+function drawMini(xCtx, p, cw, offsetY) {
+  const pw = p.shape[0].length * MINI;
+  const sx = Math.floor((cw - pw) / 2);
+  p.shape.forEach((row, r) =>
+    row.forEach((v, c) => {
+      if (!v) return;
+      const px = sx + c*MINI, py = offsetY + r*MINI;
+      xCtx.fillStyle = COLORS[v];
+      xCtx.fillRect(px+1, py+1, MINI-2, MINI-2);
+      xCtx.fillStyle = 'rgba(255,255,255,0.2)';
+      xCtx.fillRect(px+1, py+1, MINI-2, 4);
+    })
+  );
+}
+
+function drawNext() {
+  nextCtx.fillStyle = '#111128';
+  nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+  nextQueue.slice(0, 3).forEach((p, i) => drawMini(nextCtx, p, nextCanvas.width, i*90+6));
+}
+
+function drawHold() {
+  holdCtx.fillStyle = '#111128';
+  holdCtx.fillRect(0, 0, holdCanvas.width, holdCanvas.height);
+  if (holdPiece) {
+    holdCtx.globalAlpha = canHold ? 1 : 0.3;
+    drawMini(holdCtx, holdPiece, holdCanvas.width, 8);
+    holdCtx.globalAlpha = 1;
+  }
+}
+
+// ===== UI =====
+function updateUI() {
+  document.getElementById('score-display').textContent = score.toLocaleString();
+  document.getElementById('lines-display').textContent = lines;
+  document.getElementById('level-display').textContent = level;
+  document.getElementById('level-bar').style.width =
+    ((lines % LEVEL_LINES) / LEVEL_LINES * 100) + '%';
+}
+
+// ===== DAS =====
+function handleDAS(delta) {
+  if (!piece || (flashLines && flashLines.length)) return;
+  ['ArrowLeft','ArrowRight'].forEach(key => {
+    const dx = key === 'ArrowLeft' ? -1 : 1;
+    if (keysDown.has(key)) {
+      dasHeld[key]   = (dasHeld[key] || 0) + delta;
+      if (!dasActive[key] && dasHeld[key] >= DAS_MS) dasActive[key] = true;
+      if (dasActive[key]) {
+        const excess = dasHeld[key] - DAS_MS;
+        const reps   = Math.floor(excess / ARR_MS);
+        for (let i = 0; i < reps; i++) tryMove(dx);
+        if (reps) dasHeld[key] = DAS_MS + (excess % ARR_MS);
+      }
+    } else {
+      dasHeld[key]   = 0;
+      dasActive[key] = false;
+    }
+  });
+}
+
+// ===== GAME LOOP =====
+function gameLoop(ts) {
+  if (!running) return;
+  const delta = Math.min(ts - (lastTime || ts), 100);
+  lastTime = ts;
+
+  if (paused) { animId = requestAnimationFrame(gameLoop); return; }
+
+  if (flashLines && flashLines.length) {
+    flashTimer -= delta;
+    if (flashTimer <= 0) finishFlash();
+    drawBoard(); drawNext(); drawHold();
+    animId = requestAnimationFrame(gameLoop);
+    return;
+  }
+
+  handleDAS(delta);
+
+  dropCounter += delta;
+  if (dropCounter >= dropInterval) {
+    dropCounter -= dropInterval;
+    if (!collides(piece, board, 0, 1)) {
+      piece.y++;
+      isGrounded = false;
+    } else {
+      if (!isGrounded) {
+        isGrounded = true;
+        lockTimer  = LOCK_DELAY;
+      }
+    }
+  }
+
+  if (isGrounded) {
+    lockTimer -= delta;
+    if (lockTimer <= 0) doLock();
+  }
+
+  drawBoard(); drawNext(); drawHold();
+  animId = requestAnimationFrame(gameLoop);
+}
+
+// ===== START =====
+function startGame() {
+  board        = newBoard();
+  bag          = [];
+  nextQueue    = [];
+  fillQueue();
+  holdPiece    = null;
+  canHold      = true;
+  score        = 0; lines = 0; level = 1;
+  dropInterval = 1000;
+  dropCounter  = 0;
+  lastTime     = null;
+  gameOver     = false; paused = false; running = true;
+  lastTetris   = false;
+  isGrounded   = false; lockTimer = 0; lockResets = 0;
+  flashLines   = []; flashTimer = 0;
+  pendingScore = 0; pendingLines = 0;
+  keysDown.clear();
+  dasHeld = {}; dasActive = {};
+  doSpawn();
+  updateUI();
+  document.getElementById('overlay').style.display = 'none';
+  if (animId) cancelAnimationFrame(animId);
+  animId = requestAnimationFrame(gameLoop);
+}
+
+// ===== OVERLAYS =====
+function setOverlay(html) {
+  const el = document.getElementById('overlay');
+  el.innerHTML = html;
+  el.style.display = 'flex';
+}
+
+function showStart() {
+  setOverlay(`
+    <h1>TETRIS</h1>
+    <p class="sub">クラシックブロックパズル</p>
+    <button class="btn" id="ob-start">ゲーム開始</button>
+    <p style="font-size:11px;color:#333;line-height:2;text-align:center">
+      ←→ 移動 &nbsp; ↑ 回転 &nbsp; ↓ ソフトドロップ<br>
+      Space ハードドロップ &nbsp; C ホールド &nbsp; P ポーズ
+    </p>
+  `);
+  document.getElementById('ob-start').onclick = startGame;
+}
+
+function showGameOver() {
+  setOverlay(`
+    <h1 style="font-size:28px;letter-spacing:3px">GAME OVER</h1>
+    <div class="score-highlight">${score.toLocaleString()}</div>
+    <p class="sub">名前を入力してスコアを登録</p>
+    <input id="name-input" type="text" maxlength="10" placeholder="名前（10文字以内）" autocomplete="off">
+    <button class="btn" id="ob-submit">スコアを登録</button>
+    <button class="btn btn-ghost" id="ob-retry">もう一度（登録しない）</button>
+    <div class="overlay-rank" id="ob-rank" style="display:none">
+      <h4>ランキング TOP10</h4>
+      <div id="ob-rank-list"></div>
+    </div>
+  `);
+  document.getElementById('ob-submit').onclick = submitScore;
+  document.getElementById('ob-retry').onclick  = startGame;
+  document.getElementById('name-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitScore();
+  });
+  loadRanking();
+}
+
+// ===== INPUT =====
+document.addEventListener('keydown', e => {
+  if (['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
+  if (!running) return;
+
+  if ((e.key === 'p' || e.key === 'P') && !e.repeat) {
+    paused = !paused;
+    if (!paused) lastTime = null;
+    return;
+  }
+  if (paused || (flashLines && flashLines.length)) return;
+
+  switch (e.key) {
+    case 'ArrowLeft':
+      if (!keysDown.has(e.key)) { keysDown.add(e.key); tryMove(-1); }
+      break;
+    case 'ArrowRight':
+      if (!keysDown.has(e.key)) { keysDown.add(e.key); tryMove(1); }
+      break;
+    case 'ArrowDown':  softDrop(); break;
+    case 'ArrowUp':    if (!e.repeat) tryRotate(); break;
+    case ' ':          if (!e.repeat) hardDrop(); break;
+    case 'c': case 'C': if (!e.repeat) doHold(); break;
+  }
+});
+
+document.addEventListener('keyup', e => keysDown.delete(e.key));
+
+// ===== GAS / LEADERBOARD =====
+async function submitScore() {
+  const nameEl  = document.getElementById('name-input');
+  const name    = nameEl ? nameEl.value.trim() || '名無し' : '名無し';
+  const btn     = document.getElementById('ob-submit');
+
+  if (btn) { btn.disabled = true; btn.textContent = '登録中...'; }
+
+  if (GAS_URL !== 'YOUR_GAS_URL_HERE') {
+    try {
+      await fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, score })
+      });
+      await new Promise(r => setTimeout(r, 1000));
+    } catch(_) {}
+  }
+
+  await loadRanking();
+
+  const box = document.getElementById('ob-rank');
+  if (box) box.style.display = 'block';
+  if (btn) { btn.textContent = 'もう一度'; btn.disabled = false; btn.onclick = startGame; }
+}
+
+async function loadRanking() {
+  if (GAS_URL === 'YOUR_GAS_URL_HERE') {
+    renderRanking(null, 'ranking-list', 5);
+    renderRanking(null, 'ob-rank-list', 10);
+    return;
+  }
+  try {
+    const res  = await fetch(GAS_URL + '?action=ranking', { cache: 'no-store' });
+    const data = await res.json();
+    renderRanking(data, 'ranking-list', 5);
+    renderRanking(data, 'ob-rank-list', 10);
+  } catch(_) {
+    const el = document.getElementById('ranking-list');
+    if (el) el.innerHTML = '<div style="color:#333;font-size:11px">取得できません</div>';
+  }
+}
+
+function renderRanking(data, id, limit) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!data || !data.length) {
+    el.innerHTML = '<div style="color:#333;font-size:11px;padding:2px 0">まだ記録なし</div>';
+    return;
+  }
+  const medals = ['gold','silver','bronze'];
+  el.innerHTML = data.slice(0, limit).map((entry, i) => `
+    <div class="rank-row ${medals[i]||''}">
+      <span class="rank-num">${i+1}</span>
+      <span class="rank-name">${esc(entry.name)}</span>
+      <span class="rank-score">${Number(entry.score).toLocaleString()}</span>
+    </div>
+  `).join('');
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]
+  );
+}
+
+// ===== INIT =====
+showStart();
+loadRanking();
+</script>
+</body>
+</html>
